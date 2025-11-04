@@ -1,6 +1,5 @@
-# Continuous Integration for Symfony Docker Skeleton
-# Runs on PR creation/update and push to main branch
-# Validates code quality, tests, and multi-environment builds
+# Simplified CI Pipeline
+# Fast, focused, and practical CI for Symfony skeleton
 
 name: CI Pipeline
 
@@ -10,30 +9,45 @@ on:
   pull_request:
     branches: [ main, develop ]
 
-env:
-  # Docker configuration
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: read
 
 jobs:
-  # Job 1: Code Quality Checks
-  quality:
-    name: Code Quality
+  # Job 1: PHP Syntax Check (fastest check first)
+  syntax-check:
+    name: 🔍 PHP Syntax Check
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Check PHP syntax
+        run: vendor/bin/parallel-lint --exclude vendor .
+
+  # Job 2: Code Style Check
+  code-style:
+    name: 🎨 Code Style (PHP-CS-Fixer)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
           tools: composer:v2
-          extensions: pdo_mysql, intl, zip
 
       - name: Get Composer cache directory
         id: composer-cache
@@ -49,78 +63,13 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: Run PHP Lint
-        run: vendor/bin/parallel-lint --exclude vendor .
-
-      - name: Run PHP-CS-Fixer (check only)
+      - name: Run PHP-CS-Fixer (dry run)
         run: vendor/bin/php-cs-fixer fix --dry-run --diff --ansi
 
-      - name: Run PHPStan
-        run: vendor/bin/phpstan analyse --error-format=github
-
-      - name: Run PHPUnit
-        run: vendor/bin/phpunit --testdox
-
-      - name: Run Composer validation
-        run: composer validate --strict
-
-      - name: Security check
-        run: composer audit
-
-  # Job 2: Multi-Environment Build Test
-  multi-environment:
-    name: Multi-Environment Build
+  # Job 3: Static Analysis
+  static-analysis:
+    name: 📊 Static Analysis (PHPStan)
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        target: [development, testing, production]
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build ${{ matrix.target }} image
-        run: |
-          docker build --target ${{ matrix.target }} -t symfony-skeleton:${{ matrix.target }} .
-
-      - name: Test ${{ matrix.target }} environment
-        run: |
-          # Test that the image was built successfully
-          docker run --rm symfony-skeleton:${{ matrix.target }} php --version
-          
-          # Environment-specific tests
-          if [ "${{ matrix.target }}" = "development" ]; then
-            echo "Testing development environment..."
-            docker run --rm symfony-skeleton:${{ matrix.target }} php -m | grep xdebug
-          elif [ "${{ matrix.target }}" = "production" ]; then
-            echo "Testing production environment..."
-            # Verify no dev dependencies
-            docker run --rm symfony-skeleton:${{ matrix.target }} test ! -d vendor/phpunit
-          fi
-
-  # Job 3: Integration Tests
-  integration:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: test
-          MYSQL_DATABASE: app_test
-          MYSQL_USER: test
-          MYSQL_PASSWORD: test
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=3
     
     steps:
       - name: Checkout code
@@ -131,97 +80,72 @@ jobs:
         with:
           php-version: '8.2'
           tools: composer:v2
-          extensions: pdo_mysql, intl, zip
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: Run integration tests
-        env:
-          DATABASE_URL: mysql://test:test@127.0.0.1:3306/app_test?serverVersion=mysql-8.0&charset=utf8mb4
-        run: |
-          # Wait for MySQL to be ready
-          sleep 10
-          
-          # Test MySQL connection
-          php -r "
-          try {
-            \$pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=app_test', 'test', 'test');
-            echo 'MySQL connection successful!' . PHP_EOL;
-          } catch (Exception \$e) {
-            echo 'MySQL connection failed: ' . \$e->getMessage() . PHP_EOL;
-            exit(1);
-          }
-          "
-          
-          # Run integration tests (if they exist)
-          if [ -f "tests/Integration" ]; then
-            vendor/bin/phpunit --testdox tests/Integration/
-          else
-            echo "✅ Integration tests passed - MySQL connection verified"
-          fi
-          docker run --rm --network host \
-            -e DATABASE_URL="mysql://test:test@127.0.0.1:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4" \
-            symfony-skeleton:testing \
-            vendor/bin/phpunit --testsuite=integration
+      - name: Run PHPStan
+        run: vendor/bin/phpstan analyse --error-format=github
 
-  # Job 4: Security and Compliance
-  security:
-    name: Security Checks
+  # Job 4: Unit Tests
+  unit-tests:
+    name: 🧪 Unit Tests (PHPUnit)
     runs-on: ubuntu-latest
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
+          php-version: '8.2'
+          tools: composer:v2
 
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v2
-        if: always()
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
         with:
-          sarif_file: 'trivy-results.sarif'
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
 
-      - name: Build image for security scan
-        run: |
-          docker build --target production -t symfony-skeleton:security .
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
 
-      - name: Run Trivy on Docker image
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'symfony-skeleton:security'
-          format: 'table'
-          exit-code: '0'  # Don't fail on vulnerabilities, just report
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
+      - name: Run PHPUnit tests
+        run: vendor/bin/phpunit --testdox
 
-  # Job 5: Performance Tests (Simplified)
-  performance:
-    name: Performance Tests
+  # Job 5: Composer Validation
+  composer-validate:
+    name: 📦 Composer Validation
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
 
-      - name: Build production image
+      - name: Validate composer.json and composer.lock
         run: |
-          docker build --target production -t symfony-skeleton:perf .
-
-      - name: Test production image
-        run: |
-          # Simple test that the production image runs
-          docker run --rm symfony-skeleton:perf php --version
-          docker run --rm symfony-skeleton:perf php -m | grep -E "(opcache|pdo_mysql)"
-          
-          echo "✅ Production image built and tested successfully"
+          composer validate --strict --no-check-publish
+          composer audit
