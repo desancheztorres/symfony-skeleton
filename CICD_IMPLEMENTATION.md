@@ -187,13 +187,19 @@ docs(readme): update installation guide
    Rules for main branch:
    ☑️ Require a pull request before merging
    ☑️ Require status checks to pass before merging
-     - CI Pipeline / quality-checks
-     - CI Pipeline / multi-environment-builds  
-     - CI Pipeline / integration-tests
-     - CI Pipeline / security-scans
-     - CI Pipeline / performance-tests
+     - 🔍 PHP Syntax Check
+     - 🎨 Code Style (PHP-CS-Fixer)
+     - 📊 Static Analysis (PHPStan)
+     - 🧪 Unit Tests (PHPUnit)
+     - 📦 Composer Validation
    ☑️ Require conversation resolution before merging
    ☑️ Include administrators
+   ```
+   
+   **Quick setup:**
+   ```bash
+   make branch-protection
+   # O directamente: ./scripts/setup-branch-protection.sh
    ```
 
 3. **Update Badge URLs**:
