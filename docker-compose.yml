@@ -1,0 +1,84 @@
+services:
+    php:
+        # Build optimized PHP-FPM 8.2 Alpine with Composer + Xdebug
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                # Align container user with host UID/GID to avoid permission issues on bind mounts
+                PUID: ${PUID:-1000}
+                PGID: ${PGID:-1000}
+        container_name: symfony-php
+        restart: unless-stopped
+        depends_on:
+            - db
+        environment:
+            APP_ENV: dev
+            COMPOSER_HOME: /tmp/composer
+            COMPOSER_ALLOW_SUPERUSER: "1"
+
+            # Database URL used by Symfony (override in .env.local if you prefer)
+            DATABASE_URL: mysql://${DB_USER:-symfony}:${DB_PASSWORD:-symfony}@db:3306/${DB_NAME:-app}?serverVersion=mariadb-11.4&charset=utf8mb4
+
+            # Xdebug v3 controls (JetBrains best practices)
+            XDEBUG_MODE: ${XDEBUG_MODE:-off}
+            XDEBUG_CONFIG: "client_host=host.docker.internal client_port=9003 start_with_request=yes"
+            PHP_IDE_CONFIG: "serverName=localhost"
+
+        working_dir: /var/www/html
+        user: "www-data"
+        volumes:
+            # Bind mount project root for hot reload (cached for performance on macOS)
+            - .:/var/www/html:cached
+            # Composer cache for faster dependency installs
+            - composer-cache:/tmp/composer
+            # External PHP configuration files (easier to modify without rebuild)
+            - ./docker/php/php.ini:/usr/local/etc/php/php.ini:ro
+            - ./docker/php/opcache.ini:/usr/local/etc/php/conf.d/10-opcache.ini:ro
+            - ./docker/php/xdebug.ini:/usr/local/etc/php/conf.d/20-xdebug.ini:ro
+        # Remove healthcheck - unnecessary overhead for dev environment
+
+    nginx:
+        image: nginx:alpine
+        container_name: symfony-nginx
+        depends_on:
+            - php
+        ports:
+            # Host 8080 -> Container 80
+            - "8080:80"
+        environment:
+            APP_ENV: dev
+        volumes:
+            # Same code as read-only for Nginx (cached for performance)
+            - .:/var/www/html:ro,cached
+            # Nginx vhost tailored for Symfony
+            - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+        # Remove healthcheck - Nginx Alpine is very stable
+
+    db:
+        image: mariadb:11.4
+        container_name: symfony-mariadb
+        restart: unless-stopped
+        environment:
+            # Default dev credentials (override via .env if needed)
+            MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+            MARIADB_DATABASE: ${DB_NAME:-app}
+            MARIADB_USER: ${DB_USER:-symfony}
+            MARIADB_PASSWORD: ${DB_PASSWORD:-symfony}
+        ports:
+            # Expose DB for local tools; change host port if 3306 is busy
+            - "3306:3306"
+        volumes:
+            - db-data:/var/lib/mysql
+        # Keep only essential healthcheck for database (critical service)
+        healthcheck:
+            test: [ "CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p${DB_ROOT_PASSWORD:-root} --silent" ]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 30s
+
+# Optional named volumes
+volumes:
+    db-data:
+    composer-cache:
