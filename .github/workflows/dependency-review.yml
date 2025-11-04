@@ -15,6 +15,8 @@ jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
+    # Skip for private repos without Advanced Security
+    continue-on-error: true
     
     steps:
       - name: Checkout code
@@ -47,7 +49,7 @@ jobs:
         run: composer audit --format=json | tee composer-audit.json
 
       - name: Upload audit results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
           name: composer-audit-results

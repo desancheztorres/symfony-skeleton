@@ -30,7 +30,7 @@ jobs:
 
       - name: Build development image
         run: |
-          docker compose -f docker-compose.yml build --target development
+          docker build --target development -t app-php:dev .
 
       - name: Start services
         run: |
@@ -137,7 +137,7 @@ jobs:
 
       - name: Run integration tests
         env:
-          DATABASE_URL: mysql://test:test@mariadb:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4
+          DATABASE_URL: mysql://test:test@127.0.0.1:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4
         run: |
           # Run container with network access to MariaDB service
           docker run --rm --network host \
@@ -206,26 +206,27 @@ jobs:
 
       - name: Start production environment
         run: |
-          docker run -d --name symfony-app -p 8080:9000 symfony-skeleton:perf
-          docker run -d --name nginx --link symfony-app -p 80:80 \
-            -v ${{ github.workspace }}/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
-            nginx:alpine
+          # Use docker-compose for proper networking
+          docker compose -f docker-compose.prod.yml up -d
+          # Wait for services to be ready
+          sleep 30
 
       - name: Wait for services
         run: |
-          sleep 10
-          curl --retry 5 --retry-delay 2 http://localhost || exit 1
+          # Check if service is responding
+          timeout 60 bash -c 'until curl -f http://localhost:8080; do sleep 2; done'
 
       - name: Run basic performance test
         run: |
           # Simple load test
-          curl -w "@.github/workflows/curl-format.txt" -o /dev/null -s http://localhost
+          curl -w "@.github/workflows/curl-format.txt" -o /dev/null -s http://localhost:8080
           
           # Check response time
-          time curl -s http://localhost > /dev/null
+          time curl -s http://localhost:8080 > /dev/null
 
       - name: Cleanup
         if: always()
         run: |
+          docker compose -f docker-compose.prod.yml down -v
           docker stop symfony-app nginx || true
           docker rm symfony-app nginx || true
