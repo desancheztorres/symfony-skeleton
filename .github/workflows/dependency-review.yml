@@ -1,11 +1,13 @@
 # Dependency Review and Security
-# Runs on pull requests to check for vulnerable dependencies
+# Only runs on public repositories with Advanced Security enabled
 
 name: Dependency Review
 
 on:
   pull_request:
     branches: [ main, develop ]
+  # Disable for now - only works with GitHub Advanced Security
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -15,8 +17,8 @@ jobs:
   dependency-review:
     name: Dependency Review
     runs-on: ubuntu-latest
-    # Skip for private repos without Advanced Security
-    continue-on-error: true
+    # Skip for now - only works with Advanced Security
+    if: false
     
     steps:
       - name: Checkout code
