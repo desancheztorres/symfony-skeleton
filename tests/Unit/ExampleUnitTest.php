@@ -42,6 +42,9 @@ class ExampleUnitTest extends TestCase
         $this->assertEquals($expected, $a + $b);
     }
 
+    /**
+     * @return array<int, array<int, int>>
+     */
     public static function additionProvider(): array
     {
         return [

@@ -48,6 +48,6 @@ HTML;
 
     private function getStatusClass(string $status): string
     {
-        return $status === 'loaded' ? 'success' : 'warning';
+        return 'loaded' === $status ? 'success' : 'warning';
     }
 }

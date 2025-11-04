@@ -1,0 +1,54 @@
+# GrumPHP Configuration for Symfony Docker Skeleton
+# This file configures automatic git hooks for code quality
+
+grumphp:
+  # Git hooks configuration
+  hooks_dir: ~
+  hooks_preset: local
+  git_hook_variables:
+    EXEC_GRUMPHP_COMMAND: 'docker compose exec -T php'
+  
+  # Execution settings
+  stop_on_failure: false
+  ignore_unstaged_changes: false
+  process_timeout: 60
+  
+  # Tasks to run on commit
+  tasks:
+    # 1. PHP Syntax Check
+    phplint:
+      exclude: ['vendor', 'var']
+
+    # 2. Composer validation
+    composer:
+      file: ./composer.json
+      no_check_all: false
+      no_check_lock: false
+      strict: false
+
+    # 3. JSON Lint
+    jsonlint:
+      ignore_patterns: ['vendor/*', 'var/*']
+      detect_key_conflicts: false
+
+    # 4. YAML Lint
+    yamllint:
+      ignore_patterns: 
+        - 'vendor/*'
+        - 'var/*'
+      object_support: true
+
+    # 5. PHP-CS-Fixer
+    phpcsfixer2:
+      config: .php-cs-fixer.dist.php
+      allow_risky: true
+
+    # 6. PHPStan
+    phpstan:
+      configuration: phpstan.dist.neon
+      level: 6
+      memory_limit: '1G'
+
+    # 7. PHPUnit
+    phpunit:
+      config_file: phpunit.dist.xml

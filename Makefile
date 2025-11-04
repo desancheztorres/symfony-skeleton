@@ -12,7 +12,8 @@ RUN_PHP  := $(COMPOSE) run --rm php
 # Always run these targets (don't treat them as files)
 .PHONY: up build down restart ps logs logs-php logs-nginx logs-db bash sh composer-install composer-update \
 	console cc db-create db-drop migrate fixtures init xon xoff xstatus xdebug-info xdebug-full xdebug-test \
-	php-config php-prod php-dev optimize-images help
+	php-config php-prod php-dev optimize-images git-hooks-install git-hooks-run git-hooks-run-all \
+	git-hooks-configure git-hooks-status security-check security-advisories help
 
 ## —— Docker lifecycle ————————————————————————————————————————————————
 up: ## Build and start containers in background
@@ -57,10 +58,12 @@ composer-update: ## Update Composer dependencies
 	$(EXEC_PHP) composer update --no-interaction
 
 composer-require: ## Require a package (usage: make composer-require PKG="vendor/package")
-	$(EXEC_PHP) composer require $(PKG)
+	@if [ -z "$(PKG)" ]; then echo "❌ Error: PKG parameter required. Usage: make composer-require PKG=\"vendor/package\""; exit 1; fi
+	$(EXEC_PHP) composer require $(PKG) --no-interaction
 
 composer-require-dev: ## Require a dev package (usage: make composer-require-dev PKG="vendor/package")
-	$(EXEC_PHP) composer require --dev $(PKG)
+	@if [ -z "$(PKG)" ]; then echo "❌ Error: PKG parameter required. Usage: make composer-require-dev PKG=\"vendor/package\""; exit 1; fi
+	$(EXEC_PHP) composer require --dev $(PKG) --no-interaction
 
 install-phpunit: ## Install PHPUnit and testing dependencies
 	$(EXEC_PHP) composer require --dev phpunit/phpunit symfony/test-pack --no-interaction
@@ -194,6 +197,40 @@ optimize-images: ## Rebuild images with optimizations and show size comparison
 clean-build: ## Clean build cache and rebuild
 	docker builder prune -f
 	$(COMPOSE) build --no-cache --pull
+
+## —— Git Hooks (GrumPHP) ——————————————————————————————————————————
+git-hooks-install: ## Install GrumPHP git hooks
+	@echo "🔨 Installing GrumPHP git hooks..."
+	$(EXEC_PHP) vendor/bin/grumphp git:init
+	@echo "✅ Git hooks installed successfully!"
+
+git-hooks-run: ## Run GrumPHP checks manually on staged files
+	@echo "🔍 Running GrumPHP checks..."
+	$(EXEC_PHP) vendor/bin/grumphp run
+
+git-hooks-run-all: ## Run GrumPHP checks on all files
+	@echo "🔍 Running GrumPHP checks on all files..."
+	$(EXEC_PHP) vendor/bin/grumphp run --tasks=
+
+git-hooks-configure: ## Configure GrumPHP with Docker
+	@echo "⚙️ Configuring GrumPHP..."
+	$(EXEC_PHP) vendor/bin/grumphp configure
+
+git-hooks-status: ## Show GrumPHP git hooks status
+	@echo "📊 GrumPHP Git Hooks Status:"
+	@ls -la .git/hooks/ | grep -E "(pre-commit|commit-msg)" || echo "No GrumPHP hooks found"
+	@echo ""
+	@echo "Configuration file:"
+	@ls -la grumphp.yml 2>/dev/null || echo "grumphp.yml not found"
+
+## —— Security ——————————————————————————————————————————————————————
+security-check: ## Check for security vulnerabilities using Composer audit
+	@echo "🔒 Checking for security vulnerabilities..."
+	$(EXEC_PHP) composer audit
+
+security-advisories: ## Check PHP Security Advisories (detailed output)
+	@echo "🔒 Checking security advisories..."
+	$(EXEC_PHP) composer audit --format=json || true
 
 ## —— Help ——————————————————————————————————————————————————————————
 help: ## Show this help
