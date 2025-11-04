@@ -14,7 +14,7 @@ cd my-new-project
 rm -rf .git
 git init
 git add .
-git commit -m "Initial commit from Symfony Docker Skeleton"
+git commit -m "Initial commit from Symfony Docker Multi-Environment Skeleton"
 
 # Customize for your project
 ```
@@ -68,17 +68,36 @@ PGID=$(id -g)
 ### 3. Initialize the Project
 
 ```bash
-# Start the environment
-make up
+# Start development environment
+make env-dev
 
 # Install dependencies
 make composer-install
+
+# Install git hooks for quality
+make git-hooks-install
 
 # Initialize database
 make init
 
 # Run quality checks
 make quality
+```
+
+### 4. Choose Your Environment
+
+```bash
+# Development (default) - Full tooling
+make env-dev
+
+# Testing - CI/CD optimized  
+make env-test
+
+# Production - Minimal & secure
+make env-prod
+
+# Check current environment
+make env-status
 ```
 
 ## 📁 What's Included
@@ -95,6 +114,7 @@ make quality
 - **PHPUnit 11.5+** - Testing framework
 - **PHPStan Level 6** - Static analysis
 - **PHP-CS-Fixer** - Code formatting
+- **GrumPHP** - Automated git hooks for code quality
 - **30+ Make commands** - Developer workflow
 
 ### Pre-configured Features
@@ -121,6 +141,8 @@ make xoff            # Disable Xdebug (performance)
 make fix             # Fix code style
 make stan            # Run static analysis  
 make test-coverage   # Generate coverage report
+make git-hooks-run   # Run GrumPHP checks manually
+make security-check  # Check for vulnerabilities
 ```
 
 ## 🎯 Project Structure

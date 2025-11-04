@@ -4,6 +4,7 @@ services:
         build:
             context: .
             dockerfile: Dockerfile
+            target: development
             args:
                 # Align container user with host UID/GID to avoid permission issues on bind mounts
                 PUID: ${PUID:-1000}

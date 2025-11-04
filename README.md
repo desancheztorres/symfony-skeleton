@@ -1,20 +1,36 @@
-# 🚀 Symfony Docker Development Environment
+# 🚀 Symfony Docker Multi-Environment Skeleton
 
-> **Production-ready Symfony 7.3 development stack with Docker, optimized for team collaboration**
+> **Production-ready Symfony 7.3 development stack with Docker, optimized for development, testing, and production**
 
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net/)
 [![Symfony](https://img.shields.io/badge/Symfony-7.3-green.svg)](https://symfony.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docker.com/)
 [![Xdebug](https://img.shields.io/badge/Xdebug-3.4.7-red.svg)](https://xdebug.org/)
+[![GrumPHP](https://img.shields.io/badge/GrumPHP-2.17-orange.svg)](https://github.com/phpro/grumphp)
+
+## 🎯 Multi-Environment Support
+
+This skeleton supports **three optimized environments**:
+
+- **🛠️ Development**: Full tooling, Xdebug, hot-reload
+- **🧪 Testing**: CI/CD optimized, in-memory database
+- **🚀 Production**: Minimal, security-hardened, performance-optimized
+
+```bash
+make env-dev    # Development environment
+make env-test   # Testing environment  
+make env-prod   # Production environment
+```
 
 ## 📋 Table of Contents
 
-- [🏗️ Architecture](#️-architecture)
+- [� Multi-Environment Support](#-multi-environment-support)
+- [�🏗️ Architecture](#️-architecture)
 - [🚀 Quick Start](#-quick-start)
 - [🐳 Docker Stack](#-docker-stack)
 - [🔧 Development Tools](#-development-tools)
 - [🐛 Debugging with Xdebug](#-debugging-with-xdebug)
-- [📝 Code Quality](#-code-quality)
+- [📝 Code Quality & Git Hooks](#-code-quality--git-hooks)
 - [🛠️ Available Commands](#️-available-commands)
 - [📁 Project Structure](#-project-structure)
 - [⚙️ Configuration](#️-configuration)
@@ -59,8 +75,9 @@ This project provides a **complete Symfony development environment** using Docke
 git clone <repository-url>
 cd app
 
-# 2. Start the environment
-make up
+# 2. Start development environment
+make env-dev
+# or traditional: make up
 
 # 3. Install dependencies
 make composer-install
@@ -68,8 +85,28 @@ make composer-install
 # 4. Initialize database
 make init
 
-# 5. Open application
+# 5. Install git hooks for code quality
+make git-hooks-install
+
+# 6. Open application
 open http://localhost:8080
+```
+
+### Environment Options
+
+```bash
+# Development (default) - Full tooling + Xdebug
+make env-dev
+make env-status
+
+# Testing - CI/CD optimized 
+make env-test
+
+# Production - Minimal & secure
+make env-prod
+
+# Build specific environments
+make build-dev build-test build-prod
 ```
 
 **That's it!** Your Symfony application is running at http://localhost:8080
@@ -113,19 +150,25 @@ open http://localhost:8080
 | **PHPStan** | 1.12+ | Static analysis | `make stan` |
 | **PHP-CS-Fixer** | 3.89+ | Code formatting | `make fix` |
 | **PHPUnit** | 11.5+ | Unit & integration testing | `make test` |
-| **Xdebug** | 3.4.7 | Debugging | `make xon` |
+| **Xdebug** | 3.4.7 | Debugging (DEV only) | `make xon` |
+| **GrumPHP** | 2.17+ | Git hooks & quality gates | `make git-hooks-install` |
 
-### Configuration Files
+### Multi-Environment Configuration
 
 ```
 docker/php/
-├── php.ini          # PHP configuration
-├── opcache.ini      # OPcache settings
-└── xdebug.ini       # Xdebug configuration
+├── dev/             # Development environment
+│   ├── php.ini      # PHP config with debugging
+│   ├── opcache.ini  # Relaxed OPcache for dev
+│   └── xdebug.ini   # Xdebug configuration
+├── test/            # Testing environment  
+│   └── php.ini      # Optimized for CI/CD
+└── prod/            # Production environment
+    └── php.ini      # Security hardened & optimized
 
-```
 .php-cs-fixer.dist.php    # Code style rules (@Symfony)
 phpstan.dist.neon         # Static analysis rules (Level 6)
+grumphp.yml              # Git hooks configuration
 phpunit.dist.xml          # PHPUnit configuration
 docker-compose.yml        # Docker orchestration
 Dockerfile                # PHP container definition
@@ -192,33 +235,51 @@ make xtest        # Open debug test page
 
 ---
 
-## 📝 Code Quality
+## 📝 Code Quality & Git Hooks
 
-### Static Analysis with PHPStan
+### Automated Quality Gates with GrumPHP
 
-```bash
-# Run static analysis
-make analyze
-
-# Configuration: phpstan.dist.neon
-# Level: 6 (high strictness)
-# Includes Symfony extensions
-```
-
-### Code Formatting with PHP-CS-Fixer
+**GrumPHP** automatically runs quality checks on every commit:
 
 ```bash
-# Check code style
-make cs-check
+# Install git hooks (one-time setup)
+make git-hooks-install
 
-# Fix code style automatically
-make cs-fix
+# Manually run quality checks
+make git-hooks-run
 
-# Configuration: .php-cs-fixer.dist.php
-# Rules: @Symfony standard
+# Check hooks status
+make git-hooks-status
 ```
 
-### Pre-commit Workflow
+**7 Quality Tasks** run automatically:
+- ✅ **PHP Lint** - Syntax validation
+- ✅ **Composer** - Dependencies validation  
+- ✅ **JSON Lint** - Configuration files
+- ✅ **YAML Lint** - Symfony configs
+- ✅ **PHP-CS-Fixer** - Code style (auto-fix)
+- ✅ **PHPStan** - Static analysis (Level 6)
+- ✅ **PHPUnit** - Unit tests
+
+### Manual Quality Commands
+
+```bash
+# All-in-one quality check
+make quality
+
+# Individual tools
+make fix             # Fix code style
+make stan            # Static analysis
+make test            # Run tests
+make security-check  # Security vulnerabilities
+```
+
+### Configuration Files
+
+- `grumphp.yml` - Git hooks configuration
+- `.php-cs-fixer.dist.php` - Code style (@Symfony rules)
+- `phpstan.dist.neon` - Static analysis (Level 6)
+- `phpunit.dist.xml` - Testing configuration
 
 ```bash
 # Recommended before committing

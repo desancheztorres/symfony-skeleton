@@ -1,8 +1,27 @@
-# Simple Makefile for Docker + Symfony developer workflow
+# Multi-Environment Makefile for Symfony Docker Skeleton
+# Supports development, testing, and production environments
 # Note: Make recipes must be indented with a TAB character.
 
-# Tools
-COMPOSE := docker compose
+# Environment variables
+ENV ?= dev
+COMPOSE_FILE_DEV := docker-compose.yml
+COMPOSE_FILE_TEST := docker-compose.test.yml
+COMPOSE_FILE_PROD := docker-compose.prod.yml
+
+# Select compose file based on environment
+ifeq ($(ENV),test)
+    COMPOSE_FILE := $(COMPOSE_FILE_TEST)
+    CONTAINER_PREFIX := test
+else ifeq ($(ENV),prod)
+    COMPOSE_FILE := $(COMPOSE_FILE_PROD)
+    CONTAINER_PREFIX := prod
+else
+    COMPOSE_FILE := $(COMPOSE_FILE_DEV)
+    CONTAINER_PREFIX := dev
+endif
+
+# Tools with environment support
+COMPOSE := docker compose -f $(COMPOSE_FILE)
 EXEC_PHP := $(COMPOSE) exec php
 RUN_PHP  := $(COMPOSE) run --rm php
 
@@ -13,7 +32,9 @@ RUN_PHP  := $(COMPOSE) run --rm php
 .PHONY: up build down restart ps logs logs-php logs-nginx logs-db bash sh composer-install composer-update \
 	console cc db-create db-drop migrate fixtures init xon xoff xstatus xdebug-info xdebug-full xdebug-test \
 	php-config php-prod php-dev optimize-images git-hooks-install git-hooks-run git-hooks-run-all \
-	git-hooks-configure git-hooks-status security-check security-advisories help
+	git-hooks-configure git-hooks-status security-check security-advisories env-dev env-test env-prod \
+	env-status build-dev build-test build-prod build-all test-unit-env test-integration-env ci-simulation \
+	prod-check deploy-check help
 
 ## —— Docker lifecycle ————————————————————————————————————————————————
 up: ## Build and start containers in background
@@ -49,6 +70,42 @@ bash: ## Open bash in PHP container
 
 sh: ## Open sh in PHP container
 	$(EXEC_PHP) sh
+
+## —— Multi-Environment Management ——————————————————————————————————————
+env-dev: ## Switch to development environment
+	@echo "🛠️  Switching to DEVELOPMENT environment..."
+	$(MAKE) ENV=dev up
+
+env-test: ## Switch to testing environment  
+	@echo "🧪 Switching to TESTING environment..."
+	$(MAKE) ENV=test up
+
+env-prod: ## Switch to production environment
+	@echo "🚀 Switching to PRODUCTION environment..."
+	$(MAKE) ENV=prod up
+
+env-status: ## Show current environment status
+	@echo "📊 Environment Status:"
+	@echo "Current ENV: $(ENV)"
+	@echo "Compose file: $(COMPOSE_FILE)"
+	@echo "Container prefix: $(CONTAINER_PREFIX)"
+	@$(COMPOSE) ps
+
+## —— Build & Deploy ——————————————————————————————————————————————————
+build-dev: ## Build development images
+	docker compose -f $(COMPOSE_FILE_DEV) build --no-cache
+
+build-test: ## Build testing images  
+	docker compose -f $(COMPOSE_FILE_TEST) build --no-cache
+
+build-prod: ## Build production images
+	docker compose -f $(COMPOSE_FILE_PROD) build --no-cache
+
+build-all: ## Build all environment images
+	@echo "🏗️  Building all environments..."
+	$(MAKE) build-dev
+	$(MAKE) build-test  
+	$(MAKE) build-prod
 
 ## —— Composer ————————————————————————————————————————————————————————
 composer-install: ## Install Composer dependencies (optimized)
@@ -231,6 +288,46 @@ security-check: ## Check for security vulnerabilities using Composer audit
 security-advisories: ## Check PHP Security Advisories (detailed output)
 	@echo "🔒 Checking security advisories..."
 	$(EXEC_PHP) composer audit --format=json || true
+
+## —— Testing Multi-Environment ——————————————————————————————————————
+test-unit-env: ## Run unit tests in testing environment
+	$(MAKE) ENV=test test-unit
+
+test-integration-env: ## Run integration tests in testing environment
+	$(MAKE) ENV=test test-integration
+
+ci-simulation: ## Simulate CI pipeline locally
+	@echo "🤖 Simulating CI Pipeline..."
+	@echo "1. Building test environment..."
+	$(MAKE) build-test
+	@echo "2. Running tests in clean environment..."
+	$(MAKE) ENV=test up
+	$(MAKE) ENV=test test
+	$(MAKE) ENV=test quality
+	@echo "3. Cleaning up..."
+	$(MAKE) ENV=test down
+	@echo "✅ CI Simulation complete!"
+
+## —— Production Helpers ——————————————————————————————————————————————
+prod-check: ## Verify production readiness
+	@echo "🔍 Production Readiness Check:"
+	@echo "1. Building production image..."
+	$(MAKE) build-prod
+	@echo "2. Testing production container..."
+	$(MAKE) ENV=prod up -d
+	sleep 10
+	@echo "3. Checking health..."
+	docker compose -f $(COMPOSE_FILE_PROD) exec php php --version
+	@echo "4. Checking dependencies..."
+	docker compose -f $(COMPOSE_FILE_PROD) exec php composer check-platform-reqs --no-dev
+	$(MAKE) ENV=prod down
+	@echo "✅ Production check complete!"
+
+deploy-check: ## Pre-deployment verification
+	@echo "🚀 Pre-deployment checks..."
+	$(MAKE) ci-simulation
+	$(MAKE) prod-check
+	@echo "✅ Ready for deployment!"
 
 ## —— Help ——————————————————————————————————————————————————————————
 help: ## Show this help
