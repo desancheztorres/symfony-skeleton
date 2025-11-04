@@ -2,11 +2,14 @@
 
 > **Production-ready Symfony 7.3 development stack with Docker, optimized for development, testing, and production**
 
+[![CI Pipeline](https://github.com/USERNAME/REPOSITORY/workflows/CI%20Pipeline/badge.svg)](https://github.com/USERNAME/REPOSITORY/actions/workflows/ci.yml)
+[![Release](https://github.com/USERNAME/REPOSITORY/workflows/Release/badge.svg)](https://github.com/USERNAME/REPOSITORY/actions/workflows/release.yml)
 [![PHP](https://img.shields.io/badge/PHP-8.2-blue.svg)](https://php.net/)
 [![Symfony](https://img.shields.io/badge/Symfony-7.3-green.svg)](https://symfony.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://docker.com/)
 [![Xdebug](https://img.shields.io/badge/Xdebug-3.4.7-red.svg)](https://xdebug.org/)
 [![GrumPHP](https://img.shields.io/badge/GrumPHP-2.17-orange.svg)](https://github.com/phpro/grumphp)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://conventionalcommits.org/)
 
 ## 🎯 Multi-Environment Support
 
@@ -24,13 +27,14 @@ make env-prod   # Production environment
 
 ## 📋 Table of Contents
 
-- [� Multi-Environment Support](#-multi-environment-support)
-- [�🏗️ Architecture](#️-architecture)
+- [🎯 Multi-Environment Support](#-multi-environment-support)
+- [🏗️ Architecture](#️-architecture)
 - [🚀 Quick Start](#-quick-start)
 - [🐳 Docker Stack](#-docker-stack)
 - [🔧 Development Tools](#-development-tools)
 - [🐛 Debugging with Xdebug](#-debugging-with-xdebug)
 - [📝 Code Quality & Git Hooks](#-code-quality--git-hooks)
+- [🤖 CI/CD & GitHub Actions](#-cicd--github-actions)
 - [🛠️ Available Commands](#️-available-commands)
 - [📁 Project Structure](#-project-structure)
 - [⚙️ Configuration](#️-configuration)
@@ -57,6 +61,9 @@ This project provides a **complete Symfony development environment** using Docke
 ✅ **Code quality tools** (PHPStan, PHP-CS-Fixer)  
 ✅ **Comprehensive Makefile** (developer workflow automation)  
 ✅ **Production optimizations** (OPcache, cached volumes)  
+✅ **GitHub Actions CI/CD** (automated testing & releases)  
+✅ **Conventional Commits** (semantic versioning automation)  
+✅ **Multi-stage security scanning** (Trivy, Composer audit)  
 
 ---
 
@@ -285,6 +292,93 @@ make security-check  # Security vulnerabilities
 # Recommended before committing
 make fix stan
 ```
+
+---
+
+## 🤖 CI/CD & GitHub Actions
+
+### 🔄 Automated Workflows
+
+This project includes comprehensive **GitHub Actions workflows** for continuous integration and deployment:
+
+#### **Pull Request Validation**
+- ✅ **PR Title Validation**: Enforces [Conventional Commits](./CONVENTIONAL_COMMITS.md)
+- ✅ **PR Size Analysis**: Automatic size labeling and warnings
+- ✅ **Quick Syntax Check**: Fast PHP syntax validation
+- ✅ **Auto-labeling**: Automatic labels based on commit type
+
+#### **CI Pipeline** (`ci.yml`)
+```
+🔍 Code Quality          🏗️ Multi-Environment    🧪 Integration Tests
+├─ PHPStan Level 6       ├─ Development Build     ├─ MariaDB Service
+├─ PHP-CS-Fixer         ├─ Testing Build         ├─ Unit Tests
+├─ PHPUnit Tests        └─ Production Build      └─ API Tests
+└─ Composer Audit
+
+🛡️ Security Scans       ⚡ Performance Tests
+├─ Trivy CVE Scanner    ├─ Load Testing
+├─ Docker Images        ├─ Response Times
+└─ Dependencies         └─ Memory Usage
+```
+
+#### **Release Automation**
+- 📦 **Semantic Versioning**: Automatic version bumps based on conventional commits
+- 📋 **Changelog Generation**: Auto-generated from commit messages
+- 🏷️ **Tag Creation**: Automated git tags for releases
+- 🚀 **Release Notes**: Generated from merged PRs
+
+#### **Dependency Security**
+- 🔒 **Dependency Review**: Checks for vulnerable packages
+- 📊 **Composer Audit**: PHP security vulnerability scanning
+- ⚠️ **PR Comments**: Security warnings on dependency changes
+
+### 📝 Conventional Commits
+
+This project uses **[Conventional Commits](./CONVENTIONAL_COMMITS.md)** for automated versioning:
+
+```bash
+feat: add new user endpoint     # Minor version bump (1.0.0 → 1.1.0)
+fix: resolve authentication bug # Patch version bump (1.0.0 → 1.0.1)
+feat!: migrate to PHP 8.3      # Major version bump (1.0.0 → 2.0.0)
+```
+
+### 🚀 Workflow Examples
+
+#### **Creating a Feature PR**
+```bash
+# 1. Create feature branch
+git checkout -b feat/user-authentication
+
+# 2. Make changes with conventional commits
+git commit -m "feat(auth): add JWT token validation"
+
+# 3. Push and create PR (triggers CI)
+git push origin feat/user-authentication
+
+# 4. CI automatically runs:
+# ├─ Validates PR title
+# ├─ Runs quality checks
+# ├─ Tests multi-environment builds
+# └─ Security scans
+```
+
+#### **Release Process**
+```bash
+# 1. Merge PR to main (manual)
+# 2. Semantic release runs automatically
+# 3. Version tag created (e.g., v1.3.0)
+# 4. Release workflow triggers
+# 5. Changelog updated
+```
+
+### 🎯 CI/CD Configuration Files
+
+- **`.github/workflows/ci.yml`**: Main CI pipeline
+- **`.github/workflows/pr-validation.yml`**: PR title and size validation
+- **`.github/workflows/dependency-review.yml`**: Security dependency checks
+- **`.github/workflows/semantic-version.yml`**: Automated versioning
+- **`.github/workflows/release.yml`**: Release automation
+- **`CONVENTIONAL_COMMITS.md`**: Commit format guide
 
 ---
 

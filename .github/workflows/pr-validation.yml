@@ -1,0 +1,198 @@
+# Pull Request Validation
+# Validates PR title follows conventional commits and runs lightweight checks
+
+name: PR Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+jobs:
+  validate-pr-title:
+    name: Validate PR Title
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Validate PR title
+        uses: amannn/action-semantic-pull-request@v5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          types: |
+            feat
+            fix
+            docs
+            style
+            refactor
+            perf
+            test
+            chore
+            ci
+            build
+          requireScope: false
+          disallowScopes: |
+            release
+          subjectPattern: ^(?![A-Z]).+$
+          subjectPatternError: |
+            The subject "{subject}" found in the pull request title "{title}"
+            didn't match the configured pattern. Please ensure that the subject
+            doesn't start with an uppercase character.
+
+  pr-size-check:
+    name: Check PR Size
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Check PR size
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+
+            const additions = pullRequest.additions;
+            const deletions = pullRequest.deletions;
+            const changes = additions + deletions;
+
+            let size = 'S';
+            let emoji = '🟢';
+            
+            if (changes > 1000) {
+              size = 'XXL';
+              emoji = '🔴';
+            } else if (changes > 500) {
+              size = 'XL';
+              emoji = '🟠';
+            } else if (changes > 200) {
+              size = 'L';
+              emoji = '🟡';
+            } else if (changes > 50) {
+              size = 'M';
+              emoji = '🔵';
+            }
+
+            const comment = `## ${emoji} PR Size: ${size}
+            
+            **Changes**: ${changes} lines (+${additions} -${deletions})
+            
+            ${changes > 500 ? '⚠️ **Large PR detected!** Consider breaking this into smaller PRs for easier review.' : ''}
+            ${changes > 1000 ? '\n🚨 **Very large PR!** This will be difficult to review effectively.' : ''}
+            
+            ### Size Guidelines:
+            - 🟢 **S** (0-50 lines): Quick review
+            - 🔵 **M** (51-200 lines): Standard review  
+            - 🟡 **L** (201-500 lines): Thorough review needed
+            - 🟠 **XL** (501-1000 lines): Consider splitting
+            - 🔴 **XXL** (1000+ lines): Should be broken down`;
+
+            // Add or update comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes('PR Size:')
+            );
+
+            if (botComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: botComment.id,
+                body: comment
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: comment
+              });
+            }
+
+  quick-validation:
+    name: Quick Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: ${{ runner.os }}-composer-
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+      - name: Check syntax errors
+        run: find src/ -name "*.php" -exec php -l {} \;
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+  label-pr:
+    name: Auto-label PR
+    runs-on: ubuntu-latest
+    needs: validate-pr-title
+    
+    steps:
+      - name: Label PR based on title
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title.toLowerCase();
+            const labels = [];
+
+            // Add labels based on conventional commit type
+            if (title.startsWith('feat')) labels.push('enhancement');
+            if (title.startsWith('fix')) labels.push('bug');
+            if (title.startsWith('docs')) labels.push('documentation');
+            if (title.startsWith('test')) labels.push('testing');
+            if (title.startsWith('refactor')) labels.push('refactoring');
+            if (title.startsWith('perf')) labels.push('performance');
+            if (title.startsWith('chore')) labels.push('maintenance');
+            if (title.startsWith('ci')) labels.push('ci/cd');
+            
+            // Add scope-based labels
+            if (title.includes('(api)')) labels.push('api');
+            if (title.includes('(auth)')) labels.push('authentication');
+            if (title.includes('(docker)')) labels.push('docker');
+            if (title.includes('(test)')) labels.push('testing');
+
+            // Add breaking change label
+            if (title.includes('!:')) labels.push('breaking-change');
+
+            if (labels.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                labels: labels
+              });
+            }

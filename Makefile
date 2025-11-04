@@ -34,7 +34,7 @@ RUN_PHP  := $(COMPOSE) run --rm php
 	php-config php-prod php-dev optimize-images git-hooks-install git-hooks-run git-hooks-run-all \
 	git-hooks-configure git-hooks-status security-check security-advisories env-dev env-test env-prod \
 	env-status build-dev build-test build-prod build-all test-unit-env test-integration-env ci-simulation \
-	prod-check deploy-check help
+	prod-check deploy-check cicd-setup cicd-validate cicd-status cicd-logs commit-check release-check pr-ready help
 
 ## —— Docker lifecycle ————————————————————————————————————————————————
 up: ## Build and start containers in background
@@ -288,6 +288,63 @@ security-check: ## Check for security vulnerabilities using Composer audit
 security-advisories: ## Check PHP Security Advisories (detailed output)
 	@echo "🔒 Checking security advisories..."
 	$(EXEC_PHP) composer audit --format=json || true
+
+## —— CI/CD & GitHub Actions ——————————————————————————————————————————
+cicd-setup: ## Run CI/CD setup script
+	@echo "🚀 Setting up CI/CD pipeline..."
+	./scripts/setup-cicd.sh
+
+cicd-validate: ## Validate GitHub Actions workflows
+	@echo "🔍 Validating GitHub Actions workflows..."
+	@if command -v gh >/dev/null 2>&1; then \
+		echo "✅ GitHub CLI found"; \
+		for workflow in .github/workflows/*.yml; do \
+			echo "Validating $$workflow..."; \
+		done; \
+	else \
+		echo "⚠️  GitHub CLI not found. Install with: brew install gh"; \
+	fi
+
+cicd-status: ## Show CI/CD pipeline status
+	@echo "📊 CI/CD Pipeline Status:"
+	@if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then \
+		gh run list --limit 5; \
+	else \
+		echo "⚠️  GitHub CLI not authenticated. Run: gh auth login"; \
+	fi
+
+cicd-logs: ## Show recent CI/CD run logs
+	@if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then \
+		gh run view --log; \
+	else \
+		echo "⚠️  GitHub CLI not authenticated. Run: gh auth login"; \
+	fi
+
+commit-check: ## Check if current changes follow conventional commits
+	@echo "📝 Checking conventional commits format..."
+	@git log --oneline -5 | head -1 | grep -E '^[a-f0-9]+ (feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+' \
+		&& echo "✅ Last commit follows conventional format" \
+		|| echo "❌ Last commit doesn't follow conventional format"
+
+release-check: ## Check if ready for release
+	@echo "🏷️  Release Readiness Check:"
+	@echo "1. Checking git status..."
+	@git status --porcelain | wc -l | xargs -I {} echo "Uncommitted files: {}"
+	@echo "2. Checking conventional commits..."
+	@git log --oneline -10 | grep -E '^[a-f0-9]+ (feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .+' | wc -l | xargs -I {} echo "Conventional commits: {}/10"
+	@echo "3. Running quality checks..."
+	@$(MAKE) quality
+	@echo "✅ Release check complete!"
+
+pr-ready: ## Prepare branch for pull request
+	@echo "🔀 Preparing for Pull Request..."
+	@echo "1. Running quality checks..."
+	@$(MAKE) quality
+	@echo "2. Checking conventional commits..."
+	@$(MAKE) commit-check
+	@echo "3. Running security checks..."
+	@$(MAKE) security-check
+	@echo "✅ Ready for Pull Request!"
 
 ## —— Testing Multi-Environment ——————————————————————————————————————
 test-unit-env: ## Run unit tests in testing environment

@@ -1,0 +1,231 @@
+# Continuous Integration for Symfony Docker Skeleton
+# Runs on PR creation/update and push to main branch
+# Validates code quality, tests, and multi-environment builds
+
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+env:
+  # Docker configuration
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Code Quality Checks
+  quality:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build development image
+        run: |
+          docker compose -f docker-compose.yml build --target development
+
+      - name: Start services
+        run: |
+          docker compose -f docker-compose.yml up -d
+          # Wait for services to be ready
+          sleep 30
+
+      - name: Install dependencies
+        run: |
+          docker compose exec -T php composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Run PHP Lint
+        run: |
+          docker compose exec -T php vendor/bin/parallel-lint --exclude vendor .
+
+      - name: Run PHP-CS-Fixer (check only)
+        run: |
+          docker compose exec -T php vendor/bin/php-cs-fixer fix --dry-run --diff --ansi
+
+      - name: Run PHPStan
+        run: |
+          docker compose exec -T php vendor/bin/phpstan analyse --error-format=github
+
+      - name: Run PHPUnit
+        run: |
+          docker compose exec -T php vendor/bin/phpunit --testdox
+
+      - name: Run Composer validation
+        run: |
+          docker compose exec -T php composer validate --strict
+
+      - name: Security check
+        run: |
+          docker compose exec -T php composer audit
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker compose down -v
+
+  # Job 2: Multi-Environment Build Test
+  multi-environment:
+    name: Multi-Environment Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [development, testing, production]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build ${{ matrix.target }} image
+        run: |
+          docker build --target ${{ matrix.target }} -t symfony-skeleton:${{ matrix.target }} .
+
+      - name: Test ${{ matrix.target }} environment
+        run: |
+          # Test that the image was built successfully
+          docker run --rm symfony-skeleton:${{ matrix.target }} php --version
+          
+          # Environment-specific tests
+          if [ "${{ matrix.target }}" = "development" ]; then
+            echo "Testing development environment..."
+            docker run --rm symfony-skeleton:${{ matrix.target }} php -m | grep xdebug
+          elif [ "${{ matrix.target }}" = "production" ]; then
+            echo "Testing production environment..."
+            # Verify no dev dependencies
+            docker run --rm symfony-skeleton:${{ matrix.target }} test ! -d vendor/phpunit
+          fi
+
+  # Job 3: Integration Tests
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: test
+          MARIADB_DATABASE: app_test
+          MARIADB_USER: test
+          MARIADB_PASSWORD: test
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -ptest --silent"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build testing image
+        run: |
+          docker build --target testing -t symfony-skeleton:testing .
+
+      - name: Run integration tests
+        env:
+          DATABASE_URL: mysql://test:test@mariadb:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4
+        run: |
+          # Run container with network access to MariaDB service
+          docker run --rm --network host \
+            -e DATABASE_URL="mysql://test:test@127.0.0.1:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4" \
+            symfony-skeleton:testing \
+            php bin/console doctrine:schema:create --env=test
+
+          # Run integration tests
+          docker run --rm --network host \
+            -e DATABASE_URL="mysql://test:test@127.0.0.1:3306/app_test?serverVersion=mariadb-11.4&charset=utf8mb4" \
+            symfony-skeleton:testing \
+            vendor/bin/phpunit --testsuite=integration
+
+  # Job 4: Security and Compliance
+  security:
+    name: Security Checks
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Build image for security scan
+        run: |
+          docker build --target production -t symfony-skeleton:security .
+
+      - name: Run Trivy on Docker image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'symfony-skeleton:security'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+
+  # Job 5: Performance Tests
+  performance:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build production image
+        run: |
+          docker build --target production -t symfony-skeleton:perf .
+
+      - name: Start production environment
+        run: |
+          docker run -d --name symfony-app -p 8080:9000 symfony-skeleton:perf
+          docker run -d --name nginx --link symfony-app -p 80:80 \
+            -v ${{ github.workspace }}/docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro \
+            nginx:alpine
+
+      - name: Wait for services
+        run: |
+          sleep 10
+          curl --retry 5 --retry-delay 2 http://localhost || exit 1
+
+      - name: Run basic performance test
+        run: |
+          # Simple load test
+          curl -w "@.github/workflows/curl-format.txt" -o /dev/null -s http://localhost
+          
+          # Check response time
+          time curl -s http://localhost > /dev/null
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker stop symfony-app nginx || true
+          docker rm symfony-app nginx || true
