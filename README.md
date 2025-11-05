@@ -38,7 +38,8 @@ make env-prod   # Production environment
 - [🛠️ Available Commands](#️-available-commands)
 - [📁 Project Structure](#-project-structure)
 - [⚙️ Configuration](#️-configuration)
-- [🚨 Troubleshooting](#-troubleshooting)
+- [� Documentation](#-documentation)
+- [�🚨 Troubleshooting](#-troubleshooting)
 
 ---
 
@@ -549,7 +550,61 @@ make down && make up
 
 ---
 
-## 🚨 Troubleshooting
+## � Documentation
+
+### **Complete Documentation Suite**
+
+This project includes comprehensive documentation to support development, architecture decisions, and team collaboration:
+
+#### **📋 Quick Access**
+- **[📖 Complete Documentation Index](docs/README.md)** - Central hub for all documentation
+- **[🚀 Multi-Project Setup](MULTI_PROJECT_PORTS.md)** - Essential for running multiple projects
+- **[🛠️ Development Workflow](docs/development/DEVELOPMENT_WORKFLOW.md)** - Daily development guide
+- **[🔧 Troubleshooting Guide](docs/development/TROUBLESHOOTING.md)** - Common issues and solutions
+
+#### **🏗️ Architecture & Decisions**
+- **[Current Architecture](docs/architecture/CURRENT_ARCHITECTURE.md)** - v1.4.0 technical overview
+- **[Future Roadmap](docs/architecture/FUTURE_ROADMAP.md)** - Vision through v2.2.0
+- **[Architecture Decision Records](docs/adr/)** - Historical decision context
+
+#### **🤖 AI Assistant Support**
+- **[Project Context](docs/context/PROJECT_CONTEXT.md)** - Complete project background
+- **[New Session Template](docs/context/NEW_SESSION_TEMPLATE.md)** - AI conversation starter
+
+#### **📊 Documentation by Use Case**
+
+**New Team Members:**
+```
+1. Read Project Context for overview
+2. Follow Development Workflow for setup  
+3. Reference Troubleshooting for issues
+4. Review Current Architecture for technical understanding
+```
+
+**AI Conversations:**
+```
+1. Use New Session Template for context
+2. Reference relevant ADRs for decisions
+3. Check specific guides for implementation
+```
+
+**Multi-Project Development:**
+```
+1. Start with Multi-Project Setup guide
+2. Use port configuration commands
+3. Reference troubleshooting for conflicts
+```
+
+### **📈 Documentation Coverage**
+- ✅ **Complete Project Context** - History, stack, configuration
+- ✅ **Architecture Decisions** - All major decisions documented
+- ✅ **Development Workflows** - Complete development process
+- ✅ **Troubleshooting** - Common issues and solutions
+- ✅ **Future Planning** - Roadmap through v2.2.0
+
+---
+
+## �🚨 Troubleshooting
 
 ### Common Issues
 
