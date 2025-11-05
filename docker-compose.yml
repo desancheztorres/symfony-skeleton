@@ -9,7 +9,7 @@ services:
                 # Align container user with host UID/GID to avoid permission issues on bind mounts
                 PUID: ${PUID:-1000}
                 PGID: ${PGID:-1000}
-        container_name: symfony-php
+        container_name: ${COMPOSE_PROJECT_NAME:-symfony-skeleton}-php
         restart: unless-stopped
         depends_on:
             - db
@@ -41,12 +41,12 @@ services:
 
     nginx:
         image: nginx:alpine
-        container_name: symfony-nginx
+        container_name: ${COMPOSE_PROJECT_NAME:-symfony-skeleton}-nginx
         depends_on:
             - php
         ports:
-            # Host 8080 -> Container 80
-            - "8080:80"
+            # Configurable NGINX port to avoid conflicts between multiple projects
+            - "${NGINX_PORT:-8080}:80"
         environment:
             APP_ENV: dev
         volumes:
@@ -58,7 +58,7 @@ services:
 
     db:
         image: mariadb:11.4
-        container_name: symfony-mariadb
+        container_name: ${COMPOSE_PROJECT_NAME:-symfony-skeleton}-mariadb
         restart: unless-stopped
         environment:
             # Default dev credentials (override via .env if needed)
@@ -67,8 +67,8 @@ services:
             MARIADB_USER: ${DB_USER:-symfony}
             MARIADB_PASSWORD: ${DB_PASSWORD:-symfony}
         ports:
-            # Expose DB for local tools; change host port if 3306 is busy
-            - "3306:3306"
+            # Configurable DB port to avoid conflicts between multiple projects
+            - "${DB_PORT:-3306}:3306"
         volumes:
             - db-data:/var/lib/mysql
         # Keep only essential healthcheck for database (critical service)
@@ -78,6 +78,18 @@ services:
             timeout: 10s
             retries: 3
             start_period: 30s
+
+    adminer:
+        image: adminer:latest
+        container_name: ${COMPOSE_PROJECT_NAME:-symfony-skeleton}-adminer
+        restart: unless-stopped
+        depends_on:
+            - db
+        ports:
+            # Configurable Adminer port to avoid conflicts between multiple projects
+            - "${ADMINER_PORT:-8081}:8080"
+        environment:
+            ADMINER_DEFAULT_SERVER: db
 
 # Optional named volumes
 volumes:

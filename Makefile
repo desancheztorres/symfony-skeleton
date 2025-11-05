@@ -33,8 +33,9 @@ RUN_PHP  := $(COMPOSE) run --rm php
 	console cc db-create db-drop migrate fixtures init xon xoff xstatus xdebug-info xdebug-full xdebug-test \
 	php-config php-prod php-dev optimize-images git-hooks-install git-hooks-run git-hooks-run-all \
 	git-hooks-configure git-hooks-status security-check security-advisories env-dev env-test env-prod \
-	env-status build-dev build-test build-prod build-all test-unit-env test-integration-env ci-simulation \
-	prod-check deploy-check cicd-setup cicd-validate cicd-status cicd-logs commit-check release-check pr-ready help
+	env-status env-copy show-config check-ports set-ports build-dev build-test build-prod build-all \
+	test-unit-env test-integration-env ci-simulation prod-check deploy-check cicd-setup cicd-validate \
+	cicd-status cicd-logs commit-check release-check pr-ready help
 
 ## —— Docker lifecycle ————————————————————————————————————————————————
 up: ## Build and start containers in background
@@ -90,6 +91,66 @@ env-status: ## Show current environment status
 	@echo "Compose file: $(COMPOSE_FILE)"
 	@echo "Container prefix: $(CONTAINER_PREFIX)"
 	@$(COMPOSE) ps
+
+## —— Multi-Project Port Configuration ————————————————————————————————
+env-copy: ## Copy .env.example to .env
+	@if [ ! -f .env ]; then \
+		echo "📋 Copying .env.example to .env..."; \
+		cp .env.example .env; \
+		echo "✅ Created .env file"; \
+		echo "💡 Edit .env to customize ports for your project"; \
+	else \
+		echo "⚠️  .env file already exists"; \
+	fi
+
+show-config: ## Show current port configuration
+	@echo "🔧 Current Port Configuration:"
+	@echo "NGINX_PORT: $$(grep 'NGINX_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8080 (default)')"
+	@echo "DB_PORT: $$(grep 'DB_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '3306 (default)')"
+	@echo "ADMINER_PORT: $$(grep 'ADMINER_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8081 (default)')"
+	@echo "PROJECT_NAME: $$(grep 'COMPOSE_PROJECT_NAME=' .env 2>/dev/null | cut -d'=' -f2 || echo 'symfony-skeleton (default)')"
+	@echo ""
+	@echo "🌐 Access URLs:"
+	@echo "Application: http://localhost:$$(grep 'NGINX_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8080')"
+	@echo "Adminer: http://localhost:$$(grep 'ADMINER_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8081')"
+
+check-ports: ## Check if configured ports are available
+	@echo "🔍 Checking port availability..."
+	@NGINX_PORT=$$(grep 'NGINX_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8080'); \
+	DB_PORT=$$(grep 'DB_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '3306'); \
+	ADMINER_PORT=$$(grep 'ADMINER_PORT=' .env 2>/dev/null | cut -d'=' -f2 || echo '8081'); \
+	for port in $$NGINX_PORT $$DB_PORT $$ADMINER_PORT; do \
+		if lsof -i :$$port >/dev/null 2>&1; then \
+			echo "❌ Port $$port is already in use"; \
+		else \
+			echo "✅ Port $$port is available"; \
+		fi; \
+	done
+
+set-ports: ## Set ports interactively (make set-ports NGINX=8080 DB=3306 ADMINER=8081 PROJECT=myapp)
+	@if [ -n "$(NGINX)" ] || [ -n "$(DB)" ] || [ -n "$(ADMINER)" ] || [ -n "$(PROJECT)" ]; then \
+		echo "🔧 Updating port configuration..."; \
+		if [ -n "$(NGINX)" ]; then \
+			sed -i '' 's/NGINX_PORT=.*/NGINX_PORT=$(NGINX)/' .env 2>/dev/null || echo "NGINX_PORT=$(NGINX)" >> .env; \
+			echo "✅ NGINX port set to $(NGINX)"; \
+		fi; \
+		if [ -n "$(DB)" ]; then \
+			sed -i '' 's/DB_PORT=.*/DB_PORT=$(DB)/' .env 2>/dev/null || echo "DB_PORT=$(DB)" >> .env; \
+			echo "✅ DB port set to $(DB)"; \
+		fi; \
+		if [ -n "$(ADMINER)" ]; then \
+			sed -i '' 's/ADMINER_PORT=.*/ADMINER_PORT=$(ADMINER)/' .env 2>/dev/null || echo "ADMINER_PORT=$(ADMINER)" >> .env; \
+			echo "✅ Adminer port set to $(ADMINER)"; \
+		fi; \
+		if [ -n "$(PROJECT)" ]; then \
+			sed -i '' 's/COMPOSE_PROJECT_NAME=.*/COMPOSE_PROJECT_NAME=$(PROJECT)/' .env 2>/dev/null || echo "COMPOSE_PROJECT_NAME=$(PROJECT)" >> .env; \
+			echo "✅ Project name set to $(PROJECT)"; \
+		fi; \
+		echo "💡 Run 'make show-config' to verify changes"; \
+	else \
+		echo "Usage: make set-ports NGINX=8080 DB=3306 ADMINER=8081 PROJECT=myapp"; \
+		echo "Example: make set-ports NGINX=8090 PROJECT=myapp2"; \
+	fi
 
 ## —— Build & Deploy ——————————————————————————————————————————————————
 build-dev: ## Build development images
